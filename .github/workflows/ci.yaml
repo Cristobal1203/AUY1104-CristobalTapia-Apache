@@ -1,0 +1,43 @@
+name: Build Deploy Apache
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Login Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build y Push imagen
+        run: |
+          docker build -t ${{ secrets.DOCKER_USERNAME }}/apache-app:latest .
+          docker push ${{ secrets.DOCKER_USERNAME }}/apache-app:latest
+
+  deploy-to-k8s:
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.EA2_SSH_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v4
+
+      - name: Copiar manifiestos y aplicar
+        run: |
+          ssh -o StrictHostKeyChecking=accept-new ubuntu@${{ vars.K3S_SERVER_PUBLIC_IP }} 'sudo rm -rf /tmp/k8s-apache'
+          scp -o StrictHostKeyChecking=accept-new -r k8s ubuntu@${{ vars.K3S_SERVER_PUBLIC_IP }}:/tmp/k8s-apache
+          ssh -o StrictHostKeyChecking=accept-new ubuntu@${{ vars.K3S_SERVER_PUBLIC_IP }} \
+            'sudo k3s kubectl apply -f /tmp/k8s-apache/'
+
+      - name: Verificar pods
+        run: ssh -o StrictHostKeyChecking=accept-new ubuntu@${{ vars.K3S_SERVER_PUBLIC_IP }} 'sudo k3s kubectl get pods -o wide'
