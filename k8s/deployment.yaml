@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
         - name: apache
-          image: TU_USUARIO_DOCKERHUB/apache-app:latest
+          image: cristobaltapia/apache-app:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 80
